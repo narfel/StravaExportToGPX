@@ -61,12 +61,6 @@ def gpsbabel_convert(input_file_path: str, output_file_path: str, file_type: str
     )
 
 
-def strip_whitespaces_from_file(input_file_path: str):
-    with fileinput.FileInput(files=(input_file_path,), inplace=True) as fp:
-        for line in fp:
-            print(line.strip())
-
-
 def gunzip(gzip_file_name: str, target_file_obj: IO):
     with gzip.open(gzip_file_name, "rb") as gzip_file:
         shutil.copyfileobj(gzip_file, target_file_obj)
@@ -77,6 +71,16 @@ def zip_extract(zip_file: zipfile.ZipFile, file_name: str, target_file_obj: IO):
     with zip_file.open(file_name) as fp:
         shutil.copyfileobj(fp, target_file_obj)
         target_file_obj.flush()
+
+
+def clear_temp(args: str, stray_file: str):
+    if os.path.exists(stray_file):
+        try:
+            if args:
+                print(f"Removing tempfile: {stray_file}")
+            os.unlink(stray_file)
+        except Exception as exception_msg:
+            print(f"Error while deleting file {exception_msg}")
 
 
 def convert_activity(activity_file_name: str, target_gpx_file_name: str):
@@ -137,6 +141,8 @@ def get_activities(
             raise Exception(
                 f"Unexpected header items in activities CSV file (expecting 68 items): {list(keys)}"
             )
+        keys.extend(["count", "csv_file_name"])
+        
         id_field = keys[0]
         date_field = keys[1]
         type_field = keys[3]
@@ -148,6 +154,8 @@ def get_activities(
                 "type": a[type_field],
                 "date": a[date_field],
                 "filename": a[filename_field],
+                "activity_count": len(activities),
+                "csv_temp_file": csv_file_name,
             }
             for a in activities
         ]
@@ -276,9 +284,13 @@ def main():
                     convert_activity(unzipped_file.name, gpx_file_path)
             else:
                 convert_activity(activity_file_name, gpx_file_path)
+                
+        stray_file = activity["csv_temp_file"]
+        ac_count = activity["activity_count"]
+        clear_temp(args.verbose, stray_file)
 
     end_time = datetime.now()
-    print(f"All done! Converted activities to: {args.output_dir} - Total time: {str(end_time - start_time).split('.')[0]}")
+    print(f"All done! {ac_count} converted activities are in: {args.output_dir} - Total time: {str(end_time - start_time).split('.')[0]}")
 
 
 if __name__ == "__main__":
