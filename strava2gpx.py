@@ -10,7 +10,17 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from datetime import datetime
 from typing import Dict, IO, List, Optional
+
+
+def date_format(text: str) -> datetime:
+    for fmt in ("%b %d, %Y, %I:%M:%S %p",):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+    raise ValueError("No valid date format found")
 
 
 def matches_filter_types(activity: Dict, filter_types: Optional[List]) -> bool:
@@ -23,10 +33,10 @@ def matches_filter_types(activity: Dict, filter_types: Optional[List]) -> bool:
     return False
 
 
-def matches_filter_years(activity: Dict, filter_years: Optional[List]) -> bool:
+def matches_filter_years(activity_date: Dict, filter_years: Optional[List]) -> bool:
     if not filter_years:
         return True
-    activity_year = activity["date"][0:4]
+    activity_year = activity_date["date"][0:4]
     if activity_year in filter_years:
         return True
     return False
@@ -76,21 +86,26 @@ def convert_activity(activity_file_name: str, target_gpx_file_name: str):
         or activity_file_name.endswith(".gpx.gz")
     ):
         suffix = activity_file_name[-7:-3]
-        with tempfile.NamedTemporaryFile(suffix=suffix) as gunzipped_file:
-            gunzip(activity_file_name, gunzipped_file)
-            gunzipped_file.flush()
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as gunzipped_file:
+            with gzip.open(activity_file_name, "rb") as gzip_file:
+                shutil.copyfileobj(gzip_file, gunzipped_file)
+                gunzipped_file.flush()
             convert_activity(gunzipped_file.name, target_gpx_file_name)
+            gunzipped_file.close()
+            os.unlink(gunzipped_file.name)
 
     elif activity_file_name.endswith(".fit"):
         gpsbabel_convert(activity_file_name, target_gpx_file_name, "fit")
 
     elif activity_file_name.endswith(".tcx"):
-        with tempfile.NamedTemporaryFile() as tcx_file:
-            # As gpsbabel does not support tcx files with trailing spaces, remove them
-            shutil.copyfile(activity_file_name, str(tcx_file))
-            tcx_file.flush()
-            strip_whitespaces_from_file(tcx_file.name)
-            gpsbabel_convert(tcx_file.name, target_gpx_file_name, "tcx")
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            with open(activity_file_name, "r") as file_to_strip:
+                for line in file_to_strip:
+                    stripped_line = line.strip() + "\n"
+                    temp.write(stripped_line.encode("utf-8"))
+            temp.close()
+            gpsbabel_convert(temp.name, target_gpx_file_name, "tcx")
+            os.unlink(temp.name)
 
     elif activity_file_name.endswith(".gpx"):
         shutil.copyfile(activity_file_name, target_gpx_file_name)
@@ -109,7 +124,7 @@ def get_activities(
     zip_file: Optional[zipfile.ZipFile], csv_file_name: str
 ) -> List[Dict]:
     if zip_file:
-        with tempfile.NamedTemporaryFile(suffix=".csv") as unzipped_file:
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as unzipped_file:
             zip_extract(zip_file, csv_file_name, unzipped_file)
             return get_activities(None, unzipped_file.name)
     with open(csv_file_name) as csv_file:
@@ -225,6 +240,7 @@ def main():
 
         for activity in get_activities(zip_file, activities_csv):
             activity_file_name = activity["filename"]
+            activity_date = date_format(activity["date"]).strftime("%Y-%m-%dT%H%M%S")
 
             if not activity_file_name:
                 continue
@@ -234,10 +250,10 @@ def main():
                     args.strava_export, activity_file_name
                 )
 
-            if not matches_filter_years(activity, args.filter_years):
+            if not matches_filter_years(activity_date, args.filter_years):
                 if args.verbose:
                     print(
-                        f'Skipping {activity_file_name}, year={activity["date"][0:4]}.'
+                        f'Skipping {activity_file_name}, year={activity_date["date"][0:4]}.'
                     )
                 continue
 
@@ -246,16 +262,14 @@ def main():
                     print(f'Skipping {activity_file_name}, type={activity["type"]}.')
                 continue
 
-            gpx_file_name = (
-                f"{activity['date']}_{activity['type']}_{activity['id']}.gpx"
-            )
+            gpx_file_name = f"{activity_date}_{activity['type']}_{activity['id']}.gpx"
             gpx_file_path = os.path.join(args.output_dir, gpx_file_name)
 
             if args.verbose:
                 print(f"Converting {activity_file_name} to {gpx_file_path}.")
             if zip_file:
                 with tempfile.NamedTemporaryFile(
-                    suffix=os.path.basename(activity_file_name)
+                    suffix=os.path.basename(activity_file_name), delete=False
                 ) as unzipped_file:
                     zip_extract(zip_file, activity_file_name, unzipped_file)
                     convert_activity(unzipped_file.name, gpx_file_path)
