@@ -154,6 +154,7 @@ def get_activities(
 
 
 def main():
+    start_time = datetime.now()
     args_parser = argparse.ArgumentParser()
 
     args_parser.add_argument(
@@ -275,6 +276,9 @@ def main():
                     convert_activity(unzipped_file.name, gpx_file_path)
             else:
                 convert_activity(activity_file_name, gpx_file_path)
+
+    end_time = datetime.now()
+    print(f"All done! Converted activities to: {args.output_dir} - Total time: {str(end_time - start_time).split('.')[0]}")
 
 
 if __name__ == "__main__":
