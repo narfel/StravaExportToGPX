@@ -127,21 +127,21 @@ def get_activities(
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as unzipped_file:
             zip_extract(zip_file, csv_file_name, unzipped_file)
             return get_activities(None, unzipped_file.name)
-    with open(csv_file_name) as csv_file:
+    with open(csv_file_name, encoding="utf8") as csv_file:
         activities = list(csv.DictReader(csv_file))
         if len(activities) == 0:
             return []
 
         keys = list(activities[0].keys())
-        if len(keys) != 10 and len(keys) != 11:
+        if len(keys) != 68:
             raise Exception(
-                f"Unexpected header items in activities CSV file (expeciting 10 or 11 items): {list(keys)}"
+                f"Unexpected header items in activities CSV file (expecting 68 items): {list(keys)}"
             )
-
         id_field = keys[0]
         date_field = keys[1]
         type_field = keys[3]
-        filename_field = keys[-1]
+        gear_field = keys[9]
+        filename_field = keys[10]
         return [
             {
                 "id": a[id_field],
