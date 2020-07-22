@@ -7,7 +7,6 @@ Convert the activites in a Strava export to GPX files
 This needs
 
 - Python >= 3.6
-- a working installation of `gpsbabel` in your `$PATH`,
 - a full [Strava export ZIP file](#getting-your-strava-export-zip-file) ;)
 
 
@@ -40,6 +39,16 @@ Activity types found in export_123456789.zip:
 - Workout
 
 ```
+
+### List Activity Types
+
+List activity gear (to be used with the `--filter-gear` option when actually converting):
+
+```
+./strava2gpx.py --input export_123456789.zip --list-gear
+
+```
+
 
 ## Getting your Strava Export ZIP File
 
