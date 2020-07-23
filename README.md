@@ -40,7 +40,7 @@ Activity types found in export_123456789.zip:
 
 ```
 
-### List Activity Types
+### List Activity Gear
 
 List activity gear (to be used with the `--filter-gear` option when actually converting):
 
